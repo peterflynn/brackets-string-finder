@@ -3,7 +3,7 @@
     "title": "String Finder",
     "homepage": "https://github.com/peterflynn/brackets-string-finder",
     "author": "Peter Flynn",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "engines": { "brackets": ">=1.0" },
-    "description": "Find all string literals in your JS code, across your whole project - great for localization! Just run \"Find > Find All String Literals_\"."
+    "description": "Find all string literals in your JS code, across your whole project – great for localization! Just run \"Find > Find All String Literals\"."
 }
