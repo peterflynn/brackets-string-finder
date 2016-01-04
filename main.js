@@ -37,12 +37,14 @@ define(function (require, exports, module) {
         ProjectManager      = brackets.getModule("project/ProjectManager"),
         DocumentManager     = brackets.getModule("document/DocumentManager"),
         EditorManager       = brackets.getModule("editor/EditorManager"),
-        CodeMirror          = brackets.getModule("thirdparty/CodeMirror/lib/codemirror"),
         ExtensionUtils      = brackets.getModule("utils/ExtensionUtils"),
         Async               = brackets.getModule("utils/Async"),
         StatusBar           = brackets.getModule("widgets/StatusBar"),
         Dialogs             = brackets.getModule("widgets/Dialogs"),
         PreferencesManager  = brackets.getModule("preferences/PreferencesManager");
+    
+    // Extension's modules
+    var TokenIterator = require("TokenIterator");
     
     
     var resultsPanel;
@@ -158,81 +160,17 @@ define(function (require, exports, module) {
     
     
     function findStringsInText(text) {
-        var mode = CodeMirror.getMode({}, "javascript");
-        var modeState = CodeMirror.startState(mode);
-        
-        var lineText;
-        var nextEol = -1;
-        var pos = { line: -1 };
-        var index;
-        var stream;
         var token;
-        
-        function nextLine() {
-            do {
-                index = nextEol + 1;
-                if (index >= text.length) {
-                    return false;
-                }
-                nextEol = text.indexOf("\n", index);
-                if (nextEol === -1) {
-                    nextEol = text.length;  // last line
-                }
-                pos.line++;
-                pos.ch = 1;
-
-                lineText = text.substring(index, nextEol);
-            } while (lineText === "");
-
-            stream = new CodeMirror.StringStream(lineText);
-            return true;
-            // at this point, stream.pos and index both point to the start of the line; and pos.ch points to 1 char later
-        }
-        
-        function next() {
-            if (!stream) {
-                return null;  // special case if fed empty string or string of nothing but empty lines
-            }
-
-            stream.start = stream.pos;  // move stream to start of next token (just past end of prev token)
-
-            // Advance our position before trying to advance stream, since we want our state to point past EOF if we bail due to EOF
-            var oldPos = pos.ch;
-            pos.ch = stream.start + 1;  // +1 to line up with the odd way editor-driven iteration works
-            index += (pos.ch - oldPos);
-            // now pos.ch and _index also reflect the start of the token we're about to emit
-
-            if (stream.eol()) {
-                if (!nextLine()) {
-                    token = null;
-                    return null;
-                }
-            }
-
-            var style = mode.token(stream, modeState);  // advances stream.pos to end of token
-            var tokenText = stream.current();
-
-            console.assert(stream.pos - stream.start === tokenText.length);
-
-            token = {
-                start: stream.start,        // inclusive
-                end: stream.pos,            // exclusive (end === start + string.length)
-                string: tokenText,
-                type: style || null  // normalize undefined style to null, just like CM does
-            };
-            // at this point, _stream.pos points to 1st char AFTER the token (which may be past EOL); _index still points to start of token, and pos.ch still points to 1 char later (may also be past EOL if token was len 1)
-            return token;
-        }
-        
-        
+        var it = TokenIterator.textIterator(text);
         var hits = [];
-        nextLine();
-        while (next()) {
+        while (token = it.next()) {
             if (token.type === "string") {
                 // Ignore empty string
                 if (token.string === "\"\"") {
                     continue;
                 }
+                
+                var lineText = it.getLineText();
                 
                 // Ignore "use strict" alone on a line
                 if (token.string.match(/^["']use strict["']$/) && lineText.match(/\s*["']use strict["'];\s*/)) {
@@ -269,8 +207,8 @@ define(function (require, exports, module) {
                 }
                 
                 hits.push({
-                    startPos: {line: pos.line, ch: token.start},
-                    endPos: {line: pos.line, ch: token.end},
+                    startPos: {line: token.line, ch: token.start},
+                    endPos: {line: token.line, ch: token.end},
                     codeSnippet: token.string
                 });
             }
