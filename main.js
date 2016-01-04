@@ -159,58 +159,62 @@ define(function (require, exports, module) {
     }
     
     
+    function isIgnoredString(token, lineText) {
+        // Ignore empty string
+        if (token.string === "\"\"") {
+            return true;
+        }
+
+        // Ignore "use strict" alone on a line
+        if (token.string.match(/^["']use strict["']$/) && lineText.match(/\s*["']use strict["'];\s*/)) {
+            return true;
+        }
+
+        var match;
+        // Ignore require("...")
+        if ( (match = lineText.match(/^\s*((var\s+)?[a-zA-Z0-9_]+\s*=\s*)?require\(["'][^"]+["']\)/)) ) {
+            if (token.start < match[0].length) {
+                return true;
+            }
+        }
+
+        // Ignore Object.defineProperty(..., "...", {
+        if ( (match = lineText.match(/^\s*Object\.defineProperty\(\s*[^,"']+\s*,\s*["'][^"']+["']/)) ) {
+            if (token.start < match[0].length) {
+                return true;
+            }
+        }
+
+        // Ignore new Error(...)
+        if ( (match = lineText.match(/new Error\([^)]+\)/)) ) {
+            if (token.start < match.index + match[0].length && token.start > match.index) {  // this regexp isn't anchored to start of line
+                return true;
+            }
+        }
+
+        // Ignore console.log/warn/error/assert(...)
+        if ( (match = lineText.match(/\s*console\.(log|warn|error|assert)\([^)]+\)/)) ) {
+            if (token.start < match[0].length) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
     function findStringsInText(text) {
         var token;
         var it = TokenIterator.textIterator(text);
         var hits = [];
-        while (token = it.next()) {
+        while ( (token = it.next()) ) {
             if (token.type === "string") {
-                // Ignore empty string
-                if (token.string === "\"\"") {
-                    continue;
+                if (!isIgnoredString(token, it.getLineText())) {
+                    hits.push({
+                        startPos: {line: token.line, ch: token.start},
+                        endPos: {line: token.line, ch: token.end},
+                        codeSnippet: token.string
+                    });
                 }
-                
-                var lineText = it.getLineText();
-                
-                // Ignore "use strict" alone on a line
-                if (token.string.match(/^["']use strict["']$/) && lineText.match(/\s*["']use strict["'];\s*/)) {
-                    continue;
-                }
-                
-                var match;
-                // Ignore require("...")
-                if (match = lineText.match(/^\s*((var\s+)?[a-zA-Z0-9_]+\s*=\s*)?require\(["'][^"]+["']\)/)) {
-                    if (token.start < match[0].length) {
-                        continue;
-                    }
-                }
-                
-                // Ignore Object.defineProperty(..., "...", {
-                if (match = lineText.match(/^\s*Object\.defineProperty\(\s*[^,"']+\s*,\s*["'][^"']+["']/)) {
-                    if (token.start < match[0].length) {
-                        continue;
-                    }
-                }
-                
-                // Ignore new Error(...)
-                if (match = lineText.match(/new Error\([^)]+\)/)) {
-                    if (token.start < match.index + match[0].length && token.start > match.index) {  // this regexp isn't anchored to start of line
-                        continue;
-                    }
-                }
-                
-                // Ignore console.log/warn/error/assert(...)
-                if (match = lineText.match(/\s*console\.(log|warn|error|assert)\([^)]+\)/)) {
-                    if (token.start < match[0].length) {
-                        continue;
-                    }
-                }
-                
-                hits.push({
-                    startPos: {line: token.line, ch: token.start},
-                    endPos: {line: token.line, ch: token.end},
-                    codeSnippet: token.string
-                });
             }
         }
         return hits;
